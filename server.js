@@ -42,7 +42,7 @@ function publicUser(u) {
   if (!u) return null;
   return {
     id: u.id, name: u.name, business: u.business, email: u.email, phone: u.phone,
-    role: u.role, wallet: u.wallet, createdAt: u.created_at
+    role: u.role, wallet: u.wallet, avatar: u.avatar || null, createdAt: u.created_at
   };
 }
 
@@ -136,10 +136,13 @@ route("POST", "/api/auth/signup", async (req, res) => {
 });
 
 route("POST", "/api/auth/login", async (req, res) => {
-  const { email, password } = await readJSON(req);
-  const user = db.findUserByEmail(email || "");
+  // `identifier` can be an email address or a phone number; `email` is kept
+  // as a fallback so older clients that only ever sent { email } still work.
+  const { identifier, email, password } = await readJSON(req);
+  const login = (identifier || email || "").trim();
+  const user = db.findUserByEmail(login) || db.findUserByPhone(login);
   if (!user || !verifyPassword(password || "", user.password_hash)) {
-    return send(res, 401, { ok: false, error: "Incorrect email or password." });
+    return send(res, 401, { ok: false, error: "Incorrect email/phone or password." });
   }
   const token = db.createSession(user.id);
   send(res, 200, { ok: true, token, user: publicUser(user) });
@@ -156,6 +159,61 @@ route("GET", "/api/me", async (req, res) => {
   const user = getAuthUser(req);
   if (!user) return send(res, 401, { ok: false, error: "Not logged in." });
   send(res, 200, { ok: true, user: publicUser(user) });
+});
+
+// Profile photo — stored as a data URL directly on the user row so no file
+// storage / static hosting is needed. Capped well under the DB's comfort
+// zone for a TEXT column (a few hundred KB of base64 is plenty for an
+// avatar-sized image once the client has resized it).
+const MAX_AVATAR_CHARS = 900000; // ~650KB of image data once decoded
+route("POST", "/api/me/avatar", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return send(res, 401, { ok: false, error: "Not logged in." });
+  const { image } = await readJSON(req);
+  if (image !== null && (!image || !/^data:image\/(png|jpe?g|webp);base64,/.test(image))) {
+    return send(res, 400, { ok: false, error: "Expected a base64 image data URL (png, jpg or webp)." });
+  }
+  if (image && image.length > MAX_AVATAR_CHARS) {
+    return send(res, 413, { ok: false, error: "That image is too large — please use a smaller photo." });
+  }
+  const updated = db.setUserAvatar(user.id, image); // image === null clears it
+  send(res, 200, { ok: true, avatar: updated.avatar });
+});
+
+// ---- password reset ----
+// There's no email/SMS sending wired up in this project (see
+// server/README.md), so — same spirit as the Paystack key being blank until
+// you configure it — the reset link is handed straight back in the response
+// instead of being emailed/texted. Swap this for a real mailer/SMS provider
+// before using this in production; don't ship a token in an API response.
+route("POST", "/api/auth/forgot", async (req, res) => {
+  const { identifier } = await readJSON(req);
+  const login = (identifier || "").trim();
+  const user = db.findUserByEmail(login) || db.findUserByPhone(login);
+  if (!user) {
+    return send(res, 404, { ok: false, error: "No account matches that email or phone number." });
+  }
+  const token = db.createPasswordReset(user.id);
+  send(res, 200, {
+    ok: true,
+    token,
+    expiresInMinutes: 30,
+    note: "No email/SMS is configured — this token is returned directly instead of being sent to you."
+  });
+});
+
+route("POST", "/api/auth/reset", async (req, res) => {
+  const { token, password } = await readJSON(req);
+  if (!password || password.length < 6) {
+    return send(res, 400, { ok: false, error: "Enter a new password of at least 6 characters." });
+  }
+  const reset = db.findPasswordReset(token || "");
+  if (!reset) {
+    return send(res, 400, { ok: false, error: "That reset link is invalid or has expired — request a new one." });
+  }
+  db.setUserPassword(reset.user_id, hashPassword(password));
+  db.deletePasswordReset(token);
+  send(res, 200, { ok: true });
 });
 
 // ---- catalog ----
@@ -193,6 +251,18 @@ route("GET", "/api/transactions", async (req, res, query) => {
   if (!user) return send(res, 401, { ok: false, error: "Not logged in." });
   if (query.all === "1" && isAdmin(user)) return send(res, 200, { ok: true, transactions: db.allTransactions() });
   send(res, 200, { ok: true, transactions: db.transactionsForUser(user.id) });
+});
+
+// Removes a row from history only — it does not reverse a wallet debit/credit
+// or return printed pins to stock, it just clears the record from view.
+route("POST", "/api/transactions/delete", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return send(res, 401, { ok: false, error: "Not logged in." });
+  const { id } = await readJSON(req);
+  if (!id) return send(res, 400, { ok: false, error: "Missing transaction id." });
+  const deleted = db.deleteTransaction(id, isAdmin(user) ? null : user.id);
+  if (!deleted) return send(res, 404, { ok: false, error: "Transaction not found." });
+  send(res, 200, { ok: true });
 });
 
 // ---- wallet funding (real money, via Paystack) ----

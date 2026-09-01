@@ -36,6 +36,7 @@ db.exec(`
     password_hash TEXT NOT NULL,
     role          TEXT NOT NULL DEFAULT 'user',
     wallet        REAL NOT NULL DEFAULT 0,
+    avatar        TEXT,
     created_at    INTEGER NOT NULL
   );
 
@@ -80,7 +81,17 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS processed_references (
     reference TEXT PRIMARY KEY
   );
+
+  CREATE TABLE IF NOT EXISTS password_resets (
+    token      TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
 `);
+
+// Migration for databases created before the "avatar" column existed —
+// CREATE TABLE IF NOT EXISTS above only helps on a fresh DB_FILE.
+try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT"); } catch (e) { /* column already exists */ }
 
 if (isNewDatabase) seed();
 
@@ -112,6 +123,10 @@ function findUserByEmail(email) {
 function findUserById(id) {
   return db.prepare("SELECT * FROM users WHERE id = ?").get(id) || null;
 }
+function findUserByPhone(phone) {
+  if (!phone) return null;
+  return db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) || null;
+}
 function createUser({ name, business, email, phone, passwordHash }) {
   const id = genId("u");
   const createdAt = Date.now();
@@ -133,6 +148,14 @@ function adjustWallet(userId, delta) {
 }
 function setUserRole(userId, role) {
   db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, userId);
+  return findUserById(userId);
+}
+function setUserAvatar(userId, dataUrl) {
+  db.prepare("UPDATE users SET avatar = ? WHERE id = ?").run(dataUrl, userId);
+  return findUserById(userId);
+}
+function setUserPassword(userId, passwordHash) {
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, userId);
   return findUserById(userId);
 }
 function countSuperAdmins(excludingId) {
@@ -194,6 +217,27 @@ function deleteSession(token) {
 }
 
 // ---------------------------------------------------------------------------
+// password resets
+// ---------------------------------------------------------------------------
+const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
+function createPasswordReset(userId) {
+  const token = genId("reset");
+  db.prepare("INSERT INTO password_resets (token, user_id, expires_at) VALUES (?, ?, ?)")
+    .run(token, userId, Date.now() + RESET_TTL_MS);
+  return token;
+}
+// Returns the user_id for a still-valid token, or null if it's missing/expired.
+function findPasswordReset(token) {
+  const row = db.prepare("SELECT * FROM password_resets WHERE token = ?").get(token);
+  if (!row) return null;
+  if (row.expires_at < Date.now()) { deletePasswordReset(token); return null; }
+  return row;
+}
+function deletePasswordReset(token) {
+  db.prepare("DELETE FROM password_resets WHERE token = ?").run(token);
+}
+
+// ---------------------------------------------------------------------------
 // transactions
 // ---------------------------------------------------------------------------
 function insertTransaction(tx) {
@@ -234,6 +278,16 @@ function findPendingPayout(reference) {
 function setTransactionStatus(id, status) {
   db.prepare("UPDATE transactions SET status = ? WHERE id = ?").run(status, id);
 }
+// Deletes a transaction record (history entry only — it does not restore
+// wallet balance or un-claim any pins that were printed under it).
+// Pass ownerId to scope the delete to that user's own rows (regular users);
+// pass null to delete any transaction regardless of owner (admins).
+function deleteTransaction(id, ownerId) {
+  const result = ownerId
+    ? db.prepare("DELETE FROM transactions WHERE id = ? AND user_id = ?").run(id, ownerId)
+    : db.prepare("DELETE FROM transactions WHERE id = ?").run(id);
+  return result.changes > 0;
+}
 
 // ---------------------------------------------------------------------------
 // idempotency guard for Paystack references
@@ -247,9 +301,11 @@ function markReferenceProcessed(reference) {
 
 module.exports = {
   NETWORKS, DENOMS,
-  findUserByEmail, findUserById, createUser, listUsers, adjustWallet, setUserRole, countSuperAdmins,
+  findUserByEmail, findUserByPhone, findUserById, createUser, listUsers, adjustWallet, setUserRole, countSuperAdmins,
+  setUserAvatar, setUserPassword,
   stockCount, stockSnapshot, addPins, drawPins, cardsForTransaction,
   createSession, userIdForSession, deleteSession,
-  insertTransaction, transactionsForUser, allTransactions, findPendingPayout, setTransactionStatus,
+  createPasswordReset, findPasswordReset, deletePasswordReset,
+  insertTransaction, transactionsForUser, allTransactions, findPendingPayout, setTransactionStatus, deleteTransaction,
   isReferenceProcessed, markReferenceProcessed
 };
