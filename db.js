@@ -93,6 +93,13 @@ db.exec(`
 // CREATE TABLE IF NOT EXISTS above only helps on a fresh DB_FILE.
 try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT"); } catch (e) { /* column already exists */ }
 
+// Migration for databases created before dedicated virtual accounts existed.
+try { db.exec("ALTER TABLE users ADD COLUMN paystack_customer_code TEXT"); } catch (e) { /* already exists */ }
+try { db.exec("ALTER TABLE users ADD COLUMN dva_status TEXT NOT NULL DEFAULT 'none'"); } catch (e) { /* already exists */ }
+try { db.exec("ALTER TABLE users ADD COLUMN dva_account_number TEXT"); } catch (e) { /* already exists */ }
+try { db.exec("ALTER TABLE users ADD COLUMN dva_bank_name TEXT"); } catch (e) { /* already exists */ }
+try { db.exec("ALTER TABLE users ADD COLUMN dva_account_name TEXT"); } catch (e) { /* already exists */ }
+
 if (isNewDatabase) seed();
 
 function seed() {
@@ -160,6 +167,33 @@ function setUserPassword(userId, passwordHash) {
 }
 function countSuperAdmins(excludingId) {
   return db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'superadmin' AND id != ?").get(excludingId).n;
+}
+
+// ---------------------------------------------------------------------------
+// dedicated virtual accounts (Paystack) — a permanent bank account number
+// per user, so they can fund their wallet by transfer at any time.
+// ---------------------------------------------------------------------------
+function setCustomerCode(userId, customerCode) {
+  db.prepare("UPDATE users SET paystack_customer_code = ? WHERE id = ?").run(customerCode, userId);
+  return findUserById(userId);
+}
+function setDvaPending(userId) {
+  db.prepare("UPDATE users SET dva_status = 'pending' WHERE id = ?").run(userId);
+  return findUserById(userId);
+}
+function setDvaActive(userId, { accountNumber, bankName, accountName }) {
+  db.prepare(`
+    UPDATE users SET dva_status = 'active', dva_account_number = ?, dva_bank_name = ?, dva_account_name = ?
+    WHERE id = ?
+  `).run(accountNumber, bankName, accountName, userId);
+  return findUserById(userId);
+}
+function setDvaFailed(userId) {
+  db.prepare("UPDATE users SET dva_status = 'failed' WHERE id = ?").run(userId);
+  return findUserById(userId);
+}
+function findUserByCustomerCode(customerCode) {
+  return db.prepare("SELECT * FROM users WHERE paystack_customer_code = ?").get(customerCode) || null;
 }
 
 // ---------------------------------------------------------------------------
@@ -307,5 +341,6 @@ module.exports = {
   createSession, userIdForSession, deleteSession,
   createPasswordReset, findPasswordReset, deletePasswordReset,
   insertTransaction, transactionsForUser, allTransactions, findPendingPayout, setTransactionStatus, deleteTransaction,
-  isReferenceProcessed, markReferenceProcessed
+  isReferenceProcessed, markReferenceProcessed,
+  setCustomerCode, setDvaPending, setDvaActive, setDvaFailed, findUserByCustomerCode
 };
