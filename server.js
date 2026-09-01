@@ -29,6 +29,12 @@ const { hashPassword, verifyPassword, unitPrice, genId } = require("./lib");
 
 const PORT = process.env.PORT || 3000;
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY || "";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+// Must be on a domain you've verified in Resend, e.g. "IB-TECH <noreply@yourdomain.com>".
+// Resend's shared "onboarding@resend.dev" sender only delivers to your own
+// Resend account email, so it's fine for a first smoke test but not for
+// real users — verify a domain before going live.
+const RESEND_FROM = process.env.RESEND_FROM_EMAIL || "IB-TECH <onboarding@resend.dev>";
 const { NETWORKS, DENOMS } = db;
 const ROLES = { USER: "user", ADMIN: "admin", SUPERADMIN: "superadmin" };
 
@@ -115,6 +121,57 @@ function paystackRequest(method, urlPath, body) {
 }
 
 // ---------------------------------------------------------------------------
+// Resend calls — sends the password-reset code by email. Falls back to
+// returning the token directly in the API response when RESEND_API_KEY
+// isn't set, so local/dev testing still works with zero setup.
+// ---------------------------------------------------------------------------
+function resendRequest(body) {
+  return new Promise((resolve, reject) => {
+    if (!RESEND_API_KEY) return reject(new Error("RESEND_API_KEY is not configured on the server."));
+    const data = JSON.stringify(body);
+    const req = https.request({
+      hostname: "api.resend.com",
+      path: "/emails",
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(data)
+      }
+    }, (res) => {
+      let out = "";
+      res.on("data", c => out += c);
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode, body: JSON.parse(out) }); }
+        catch (e) { reject(e); }
+      });
+    });
+    req.on("error", reject);
+    req.write(data);
+    req.end();
+  });
+}
+
+async function sendResetEmail(user, token) {
+  const html = `
+    <p>Hi ${user.name || "there"},</p>
+    <p>Use this code to reset your IB-TECH password. It expires in 30 minutes.</p>
+    <p style="font-size:22px;font-weight:700;letter-spacing:2px;">${token}</p>
+    <p>Go back to the reset page and paste this code in if it isn't filled in already.</p>
+    <p>If you didn't request this, you can ignore this email.</p>
+  `;
+  const r = await resendRequest({
+    from: RESEND_FROM,
+    to: [user.email],
+    subject: "Your IB-TECH password reset code",
+    html
+  });
+  if (r.status >= 400) {
+    throw new Error(r.body?.message || "Resend rejected the email.");
+  }
+}
+
+// ---------------------------------------------------------------------------
 // route handlers
 // ---------------------------------------------------------------------------
 const routes = [];
@@ -194,6 +251,26 @@ route("POST", "/api/auth/forgot", async (req, res) => {
     return send(res, 404, { ok: false, error: "No account matches that email or phone number." });
   }
   const token = db.createPasswordReset(user.id);
+
+  // Email it if Resend is configured AND this account actually has an email
+  // (phone-only accounts fall back to the on-page token — there's no SMS
+  // provider wired up yet).
+  if (RESEND_API_KEY && user.email) {
+    try {
+      await sendResetEmail(user, token);
+      return send(res, 200, {
+        ok: true,
+        sent: true,
+        expiresInMinutes: 30,
+        note: `A reset code was emailed to ${user.email}.`
+      });
+    } catch (e) {
+      // Don't silently fall through to exposing the token on a
+      // misconfigured live server — surface the real problem instead.
+      return send(res, 502, { ok: false, error: `Could not send the reset email: ${e.message}` });
+    }
+  }
+
   send(res, 200, {
     ok: true,
     token,
