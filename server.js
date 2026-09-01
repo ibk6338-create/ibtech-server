@@ -48,7 +48,11 @@ function publicUser(u) {
   if (!u) return null;
   return {
     id: u.id, name: u.name, business: u.business, email: u.email, phone: u.phone,
-    role: u.role, wallet: u.wallet, avatar: u.avatar || null, createdAt: u.created_at
+    role: u.role, wallet: u.wallet, avatar: u.avatar || null, createdAt: u.created_at,
+    dedicatedAccount: u.dva_status === "active" ? {
+      accountNumber: u.dva_account_number, bankName: u.dva_bank_name, accountName: u.dva_account_name
+    } : null,
+    dedicatedAccountStatus: u.dva_status || "none"
   };
 }
 
@@ -386,6 +390,93 @@ route("POST", "/api/wallet/verify", async (req, res) => {
   }
 });
 
+// ---- wallet funding (permanent bank transfer account, via Paystack Dedicated Virtual Accounts) ----
+// Gives each user their own real bank account number to transfer into at
+// any time. IMPORTANT: this only works once Paystack has approved your
+// business for DVAs (Nigeria-registered business + completed KYC) — see
+// server/README.md. Test mode still creates fake DVAs so you can build and
+// test this flow before going live.
+route("GET", "/api/wallet/dedicated-account", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return send(res, 401, { ok: false, error: "Not logged in." });
+  const fresh = db.findUserById(user.id);
+  send(res, 200, {
+    ok: true,
+    status: fresh.dva_status || "none",
+    account: fresh.dva_status === "active"
+      ? { accountNumber: fresh.dva_account_number, bankName: fresh.dva_bank_name, accountName: fresh.dva_account_name }
+      : null
+  });
+});
+
+route("POST", "/api/wallet/dedicated-account", async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return send(res, 401, { ok: false, error: "Not logged in." });
+  let fresh = db.findUserById(user.id);
+
+  if (fresh.dva_status === "active") {
+    return send(res, 200, {
+      ok: true, status: "active",
+      account: { accountNumber: fresh.dva_account_number, bankName: fresh.dva_bank_name, accountName: fresh.dva_account_name }
+    });
+  }
+  if (fresh.dva_status === "pending") {
+    return send(res, 200, { ok: true, status: "pending", account: null });
+  }
+
+  try {
+    // Step 1 — make sure this user has a Paystack customer record.
+    let customerCode = fresh.paystack_customer_code;
+    if (!customerCode) {
+      const [firstName, ...rest] = (fresh.name || "Reseller").trim().split(/\s+/);
+      const lastName = rest.join(" ") || firstName;
+      const custRes = await paystackRequest("POST", "/customer", {
+        email: fresh.email, first_name: firstName, last_name: lastName, phone: fresh.phone || undefined
+      });
+      if (custRes.status >= 400 || !custRes.body.status) {
+        return send(res, 502, { ok: false, error: custRes.body.message || "Could not create a Paystack customer record." });
+      }
+      customerCode = custRes.body.data.customer_code;
+      fresh = db.setCustomerCode(user.id, customerCode);
+    }
+
+    // Step 2 — request a dedicated account for that customer.
+    const dvaRes = await paystackRequest("POST", "/dedicated_account", {
+      customer: customerCode,
+      preferred_bank: process.env.DVA_PREFERRED_BANK || "wema-bank"
+    });
+    if (dvaRes.status >= 400 || !dvaRes.body.status) {
+      db.setDvaFailed(user.id);
+      const msg = dvaRes.body?.message || "Could not create a dedicated account.";
+      return send(res, 502, {
+        ok: false,
+        error: `${msg} (Dedicated Virtual Accounts need your Paystack business to be KYC-approved for this feature — see server/README.md.)`
+      });
+    }
+
+    const data = dvaRes.body.data || {};
+    if (data.account_number) {
+      // Some providers assign synchronously — we already have everything.
+      db.setDvaActive(user.id, {
+        accountNumber: data.account_number,
+        bankName: data.bank?.name || "",
+        accountName: data.account_name || ""
+      });
+      return send(res, 200, {
+        ok: true, status: "active",
+        account: { accountNumber: data.account_number, bankName: data.bank?.name || "", accountName: data.account_name || "" }
+      });
+    }
+    // Otherwise it's assigned asynchronously — Paystack notifies us via the
+    // dedicatedaccount.assign.success webhook once it's ready.
+    db.setDvaPending(user.id);
+    send(res, 200, { ok: true, status: "pending", account: null });
+  } catch (e) {
+    db.setDvaFailed(user.id);
+    send(res, 500, { ok: false, error: e.message });
+  }
+});
+
 // Paystack calls this directly — it's the source of truth, independent of
 // whether the customer's browser stayed open long enough to call /verify.
 route("POST", "/api/paystack/webhook", async (req, res) => {
@@ -406,6 +497,22 @@ route("POST", "/api/paystack/webhook", async (req, res) => {
         db.insertTransaction({ id: genId("tx"), userId: user.id, type: "wallet-fund", amount: amount / 100, reference, date: Date.now(), via: "webhook" });
       }
     }
+  }
+  if (event.event === "dedicatedaccount.assign.success") {
+    const { customer, dedicated_account } = event.data;
+    const user = customer?.customer_code ? db.findUserByCustomerCode(customer.customer_code) : null;
+    if (user && dedicated_account) {
+      db.setDvaActive(user.id, {
+        accountNumber: dedicated_account.account_number,
+        bankName: dedicated_account.bank?.name || "",
+        accountName: dedicated_account.account_name || ""
+      });
+    }
+  }
+  if (event.event === "dedicatedaccount.assign.failed") {
+    const { customer } = event.data;
+    const user = customer?.customer_code ? db.findUserByCustomerCode(customer.customer_code) : null;
+    if (user) db.setDvaFailed(user.id);
   }
   if (event.event === "transfer.failed" || event.event === "transfer.reversed") {
     // A payout we already debited from the wallet didn't go through — refund it.
