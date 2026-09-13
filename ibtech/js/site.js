@@ -1,0 +1,10 @@
+(function(){
+  'use strict';
+  const css=document.createElement('link');css.rel='stylesheet';css.href='css/v1.8-compiled.css';document.head.appendChild(css);
+  const replaceBrand=()=>{const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT),a=[];while(w.nextNode())a.push(w.currentNode);a.forEach(n=>{if(/epin\s*manager/i.test(n.nodeValue))n.nodeValue=n.nodeValue.replace(/ePIN\s*Manager/gi,'ePINs').replace(/EPIN\s*Manager/gi,'ePINs').replace(/Epin\s*Manager/gi,'ePINs')})};
+  const nav=document.querySelector('.nav');
+  if(nav){const wrap=nav.querySelector('.wrap'),links=nav.querySelector('.nav-links');if(wrap&&links){let btn=nav.querySelector('.nav-toggle');if(!btn){btn=document.createElement('button');btn.className='nav-toggle';btn.type='button';btn.setAttribute('aria-expanded','false');btn.setAttribute('aria-label','Open navigation');btn.innerHTML='<span></span><span></span><span></span>';wrap.appendChild(btn)}btn.addEventListener('click',()=>{const open=nav.classList.toggle('nav-open');btn.setAttribute('aria-expanded',String(open));btn.setAttribute('aria-label',open?'Close navigation':'Open navigation')});links.addEventListener('click',e=>{if(e.target.closest('a')){nav.classList.remove('nav-open');btn.setAttribute('aria-expanded','false')}})}}
+  const reveals=document.querySelectorAll('.reveal,.feat-cell,.rstep');if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('is-visible');io.unobserve(e.target)}}),{threshold:.08});reveals.forEach((el,i)=>{el.style.setProperty('--reveal-delay',`${Math.min(i*35,280)}ms`);io.observe(el)})}else reveals.forEach(el=>el.classList.add('is-visible'));
+  document.querySelectorAll('.faq-item').forEach(item=>{const q=item.querySelector('.faq-q');if(q)q.addEventListener('click',()=>{const open=item.classList.toggle('open');q.setAttribute('aria-expanded',String(open))})});
+  document.addEventListener('DOMContentLoaded',replaceBrand);
+})();
