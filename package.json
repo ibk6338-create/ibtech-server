@@ -1,11 +1,11 @@
 {
-  "name": "ibtech-backend",
-  "version": "1.0.0",
+  "name": "ibtech-platform",
+  "version": "1.8.1",
   "private": true,
-  "description": "Reference backend for IB-TECH — real wallet funding, refunds, payouts, and role-based admin access.",
-  "main": "server.js",
+  "description": "IB-TECH ePINs website and backend",
+  "main": "static-proxy.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node static-proxy.js"
   },
   "engines": {
     "node": ">=22.5.0"
