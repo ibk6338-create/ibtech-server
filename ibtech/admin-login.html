@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Login — IB-TECH ePINs</title>
+<meta name="description" content="IB-TECH ePINs administrator login.">
+<link rel="icon" href="favicon.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-side">
+    <a class="brand" href="index.html"><span class="brand-mark">IBT</span><span>IB-TECH<small>ePINs</small></span></a>
+    <div>
+      <h1 style="color:#fff;font-size:1.9rem;max-width:14ch;">IB-TECH ePINs Admin Portal</h1>
+      <p style="color:#C6CEE0;max-width:34ch;">Manage users, wallets, PIN stock, data plans, pricing and transactions from your administrator dashboard.</p>
+    </div>
+    <div class="demo-hint">
+      <b>Administrator access</b><br>
+      Sign in with your administrator account. Unauthorized users cannot enter the admin dashboard.
+    </div>
+  </div>
+  <div class="auth-form-col">
+    <div class="auth-card">
+      <h1>Admin Login</h1>
+      <p class="hint" style="margin-bottom:24px;">Enter your administrator details to continue.</p>
+      <div id="alert" class="alert alert-error"></div>
+      <form id="loginForm" novalidate>
+        <div class="field">
+          <label for="identifier">Admin email or phone number</label>
+          <input type="text" id="identifier" required autocomplete="username" placeholder="admin@ibtech.com" />
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" required autocomplete="current-password" placeholder="••••••••" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Login to Admin Portal</button>
+      </form>
+      <p class="form-note"><a href="index.html">← Back to home</a></p>
+      <p class="form-note"><a href="login.html">User Login</a></p>
+    </div>
+  </div>
+</div>
+<script src="js/api.js"></script>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const identifier = document.getElementById('identifier').value.trim();
+  const password = document.getElementById('password').value;
+  const alertBox = document.getElementById('alert');
+  const button = e.target.querySelector('button[type=submit]');
+  alertBox.classList.remove('show');
+  button.disabled = true;
+  const result = await IBT.login(identifier, password);
+  button.disabled = false;
+  if (!result.ok) {
+    alertBox.textContent = result.error || 'Unable to log in.';
+    alertBox.classList.add('show');
+    return;
+  }
+  if (result.user && result.user.role !== 'user') {
+    window.location.href = 'admin-dashboard.html';
+    return;
+  }
+  alertBox.textContent = 'This account does not have administrator access.';
+  alertBox.classList.add('show');
+});
+</script>
+</body>
+</html>
