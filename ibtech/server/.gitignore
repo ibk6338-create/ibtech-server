@@ -1,0 +1,5 @@
+.env
+ibtech.db
+ibtech.db-shm
+ibtech.db-wal
+node_modules/

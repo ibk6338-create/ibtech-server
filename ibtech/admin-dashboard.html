@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin — IB-TECH Epin Manager</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="index.html"><span class="brand-mark">IBT</span><span>IB-TECH<small>Admin Panel</small></span></a>
+    <nav class="side-nav">
+      <a href="#overview" class="active"><span class="ic">▣</span> Overview</a>
+      <a href="#stock"><span class="ic">＋</span> Upload / Stock</a>
+      <a href="#users"><span class="ic">◍</span> Users</a>
+      <a href="#access"><span class="ic">⚿</span> Access Control</a>
+      <a href="#tx"><span class="ic">≡</span> Transactions</a>
+      <a href="index.html"><span class="ic">↩</span> View site</a>
+      <a href="#" id="logoutLink"><span class="ic">⏻</span> Logout</a>
+    </nav>
+    <div class="side-foot">ADMIN PANEL · v1.0.0</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1>Platform Overview</h1>
+      <div class="user-chip">
+        <span class="av" id="userInitial">?</span>
+        <div>
+          <div style="font-weight:600;font-size:.88rem;" id="userName">—</div>
+          <div style="font-size:.75rem;color:var(--ink-soft);">Administrator</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content" id="overview">
+
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="label">Registered users</div>
+          <div class="value" id="statUsers">0</div>
+          <div class="sub">Excludes admin accounts</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Cards printed</div>
+          <div class="value" id="statCards">0</div>
+          <div class="sub">Across all users</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Revenue collected</div>
+          <div class="value" id="statRevenue">₦0</div>
+          <div class="sub">Total wallet debits</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Pins in stock</div>
+          <div class="value" id="statStock">0</div>
+          <div class="sub">All networks combined</div>
+        </div>
+      </div>
+
+      <div class="panel" id="stock">
+        <div class="panel-head"><h2>Stock by network &amp; denomination</h2></div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Network</th><th>₦100</th><th>₦200</th><th>₦500</th><th>₦1000</th><th>₦1500</th></tr></thead>
+            <tbody id="stockBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><h2>Upload / generate e-pins</h2></div>
+          <div class="panel-body">
+            <p class="hint" style="margin-top:0;">Generates fresh e-pins straight into the server's stock — swap this for a real supplier import when you have one.</p>
+
+            <div class="field">
+              <label for="stockNetwork">Network</label>
+              <select id="stockNetwork"></select>
+            </div>
+            <div class="field">
+              <label for="stockDenom">Denomination</label>
+              <select id="stockDenom"></select>
+            </div>
+            <div class="field">
+              <label for="stockQty">Quantity to add</label>
+              <input type="number" id="stockQty" value="50" min="1" max="5000" />
+            </div>
+            <button class="btn btn-primary btn-block" id="stockBtn">Add to stock</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Credit a user's wallet</h2></div>
+          <div class="panel-body">
+            <p class="hint" style="margin-top:0;">Use this for manual wallet adjustments — refunds, offline bank transfers, promo credit.</p>
+            <div class="field">
+              <label for="creditUser">User</label>
+              <select id="creditUser"></select>
+            </div>
+            <div class="field">
+              <label for="creditAmt">Amount (₦)</label>
+              <input type="number" id="creditAmt" value="5000" min="1" />
+            </div>
+            <button class="btn btn-outline btn-block" id="creditBtn">Credit wallet</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="users">
+        <div class="panel-head">
+          <h2>Users</h2>
+          <span class="hint" id="userCount">0 users</span>
+        </div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Name</th><th>Business</th><th>Email</th><th>Wallet</th><th>Joined</th></tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="access">
+        <div class="panel-head">
+          <h2>Access Control</h2>
+          <span class="hint" id="accessNote">—</span>
+        </div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Access level</th><th>Action</th></tr></thead>
+            <tbody id="accessBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="tx">
+        <div class="panel-head">
+          <h2>All transactions</h2>
+          <span class="hint" id="txCount">0 transactions</span>
+        </div>
+        <div class="panel-body pad-0">
+          <table>
+            <thead><tr><th>Date</th><th>User</th><th>Type</th><th>Details</th><th>Amount</th></tr></thead>
+            <tbody id="txBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  let admin = null;
+  let users = [];
+  let stock = {};
+  let txs = [];
+
+  function renderTopbar() {
+    const avEl = document.getElementById("userInitial");
+    if (admin.avatar) {
+      avEl.textContent = "";
+      avEl.style.backgroundImage = `url(${admin.avatar})`;
+      avEl.style.backgroundSize = "cover";
+      avEl.style.backgroundPosition = "center";
+    } else {
+      avEl.style.backgroundImage = "none";
+      avEl.textContent = admin.name.charAt(0).toUpperCase();
+    }
+    document.getElementById("userName").textContent = admin.name;
+  }
+
+  function renderStats() {
+    const nonAdmin = users.filter(u => u.role === "user");
+    let stockTotal = 0;
+    IBT.NETWORKS.forEach(n => IBT.DENOMS.forEach(d => stockTotal += IBT.stockCount(stock, n, d)));
+    const printTxs = txs.filter(t => t.type === "print");
+    document.getElementById("statUsers").textContent = nonAdmin.length;
+    document.getElementById("statCards").textContent = printTxs.reduce((s, t) => s + (t.qty || 0), 0);
+    document.getElementById("statRevenue").textContent = IBT.fmtNaira(printTxs.reduce((s, t) => s + (t.total || 0), 0));
+    document.getElementById("statStock").textContent = stockTotal.toLocaleString();
+  }
+
+  function renderStockTable() {
+    const body = document.getElementById("stockBody");
+    body.innerHTML = IBT.NETWORKS.map(net => {
+      const logo = IBT.NETWORK_LOGOS && IBT.NETWORK_LOGOS[net];
+      return `
+      <tr>
+        <td><b>${logo ? `<img class="net-logo-sm" src="${logo}" alt="${net} logo" />` : ""}${net}</b></td>
+        ${IBT.DENOMS.map(d => `<td class="mono">${IBT.stockCount(stock, net, d)}</td>`).join("")}
+      </tr>
+    `;
+    }).join("");
+  }
+
+  function fillSelects() {
+    const netSel = document.getElementById("stockNetwork");
+    netSel.innerHTML = IBT.NETWORKS.map(n => `<option value="${n}">${n}</option>`).join("");
+    const denomSel = document.getElementById("stockDenom");
+    denomSel.innerHTML = IBT.DENOMS.map(d => `<option value="${d}">₦${d}</option>`).join("");
+
+    const userSel = document.getElementById("creditUser");
+    const resellers = users.filter(u => u.role === "user");
+    userSel.innerHTML = resellers.length
+      ? resellers.map(u => `<option value="${u.id}">${u.name} — ${u.email}</option>`).join("")
+      : `<option value="">No resellers yet</option>`;
+  }
+
+  function renderUsersTable() {
+    const resellers = users.filter(u => u.role === "user");
+    document.getElementById("userCount").textContent = `${resellers.length} user${resellers.length === 1 ? "" : "s"}`;
+    const body = document.getElementById("usersBody");
+    if (!resellers.length) {
+      body.innerHTML = `<tr class="empty-row"><td colspan="5">No resellers have signed up yet.</td></tr>`;
+      return;
+    }
+    body.innerHTML = resellers.map(u => `
+      <tr>
+        <td>${u.name}</td>
+        <td>${u.business || "—"}</td>
+        <td>${u.email}</td>
+        <td class="mono">${IBT.fmtNaira(u.wallet)}</td>
+        <td>${IBT.fmtDate(u.createdAt)}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderTxTable() {
+    document.getElementById("txCount").textContent = `${txs.length} transaction${txs.length === 1 ? "" : "s"}`;
+    const body = document.getElementById("txBody");
+    if (!txs.length) {
+      body.innerHTML = `<tr class="empty-row"><td colspan="5">No activity on the platform yet.</td></tr>`;
+      return;
+    }
+    const nameOf = (id) => users.find(u => u.id === id)?.name || "—";
+    const TYPE_LABEL = { print: "Print", "wallet-fund": "Wallet funding", "admin-credit": "Manual credit", refund: "Refund", payout: "Payout" };
+    body.innerHTML = txs.map(t => {
+      let details = "—", amount = t.amount || t.total || 0;
+      if (t.type === "print") details = `${t.network} ₦${t.denom} × ${t.qty}`;
+      else if (t.type === "refund") details = t.reason || "—";
+      else if (t.type === "payout") details = `Status: ${t.status || "pending"}`;
+      else if (t.type === "wallet-fund") details = t.via === "webhook" ? "Via Paystack webhook" : "Via checkout";
+      return `<tr><td>${IBT.fmtDate(t.date)}</td><td>${nameOf(t.userId)}</td><td>${TYPE_LABEL[t.type] || t.type}</td><td>${details}</td><td class="mono">${IBT.fmtNaira(amount)}</td></tr>`;
+    }).join("");
+  }
+
+  function renderAccessTable() {
+    const amSuper = IBT.isSuperAdmin(admin);
+    document.getElementById("accessNote").textContent = amSuper
+      ? "You can grant or revoke admin access below."
+      : "Only the super admin can change access levels.";
+
+    const body = document.getElementById("accessBody");
+    body.innerHTML = users.map(u => {
+      const roleLabel = u.role === "superadmin" ? "Super Admin" : (u.role === "admin" ? "Admin" : "User");
+      const pillClass = u.role === "user" ? "" : "ok";
+      let action = `<span class="hint">—</span>`;
+      if (u.id === admin.id) {
+        action = `<span class="hint">This is you</span>`;
+      } else if (amSuper) {
+        if (u.role === "user") action = `<button class="btn btn-outline btn-sm" data-grant="${u.id}">Grant admin</button>`;
+        else if (u.role === "admin") action = `<button class="btn btn-danger btn-sm" data-revoke="${u.id}">Revoke admin</button>`;
+        else action = `<span class="hint">Super admin</span>`;
+      }
+      return `<tr><td>${u.name}</td><td>${u.email}</td><td><span class="tag-pill ${pillClass}">${roleLabel}</span></td><td>${action}</td></tr>`;
+    }).join("");
+  }
+
+  document.getElementById("accessBody").addEventListener("click", async (e) => {
+    const grantId = e.target.dataset.grant;
+    const revokeId = e.target.dataset.revoke;
+    if (grantId) {
+      const result = await IBT.setUserRole(grantId, IBT.ROLES.ADMIN);
+      if (!result.ok) { IBT.toast(result.error, true); return; }
+      IBT.toast(`${result.user.name} now has admin access.`);
+      await refreshAll();
+    }
+    if (revokeId) {
+      const result = await IBT.setUserRole(revokeId, IBT.ROLES.USER);
+      if (!result.ok) { IBT.toast(result.error, true); return; }
+      IBT.toast(`${result.user.name}'s admin access was revoked.`);
+      await refreshAll();
+    }
+  });
+
+  function renderAll() {
+    renderStats();
+    renderStockTable();
+    fillSelects();
+    renderUsersTable();
+    renderAccessTable();
+    renderTxTable();
+  }
+
+  async function refreshAll() {
+    const [newUsers, newStock, newTxs] = await Promise.all([IBT.adminUsers(), IBT.getStock(), IBT.allTransactions()]);
+    users = newUsers; stock = newStock; txs = newTxs;
+    renderAll();
+  }
+
+  document.getElementById("stockBtn").addEventListener("click", async () => {
+    const network = document.getElementById("stockNetwork").value;
+    const denom = Number(document.getElementById("stockDenom").value);
+    const qty = Math.max(1, Number(document.getElementById("stockQty").value || 1));
+    const btn = document.getElementById("stockBtn");
+    btn.disabled = true;
+    const result = await IBT.adminAddStock({ network, denom, qty });
+    btn.disabled = false;
+    if (!result.ok) { IBT.toast(result.error, true); return; }
+    IBT.toast(`Added ${qty} ${network} ₦${denom} pin(s) — ${result.stock} now in stock.`);
+    await refreshAll();
+  });
+
+  document.getElementById("creditBtn").addEventListener("click", async () => {
+    const userId = document.getElementById("creditUser").value;
+    const amount = Math.max(1, Number(document.getElementById("creditAmt").value || 0));
+    if (!userId) { IBT.toast("No users to credit yet.", true); return; }
+    const btn = document.getElementById("creditBtn");
+    btn.disabled = true;
+    const result = await IBT.adminCreditWallet(userId, amount);
+    btn.disabled = false;
+    if (!result.ok) { IBT.toast(result.error, true); return; }
+    IBT.toast(`Credited ${IBT.fmtNaira(amount)} to wallet.`);
+    await refreshAll();
+  });
+
+  document.getElementById("logoutLink").addEventListener("click", async (e) => {
+    e.preventDefault();
+    await IBT.logout();
+    window.location.href = "login.html";
+  });
+
+  (async () => {
+    admin = await IBT.requireAuth({ admin: true });
+    if (!admin) return;
+    renderTopbar();
+    await refreshAll();
+  })();
+</script>
+</body>
+</html>
