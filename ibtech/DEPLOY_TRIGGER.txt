@@ -1,0 +1,2 @@
+IB-TECH ePINs deployment trigger
+Latest homepage/logo responsive update is ready for production deployment.
