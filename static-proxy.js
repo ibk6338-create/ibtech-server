@@ -1,4 +1,5 @@
 'use strict';
+// IB-TECH ePINs gateway — latest deployment marker: 2026-09-14
 const http=require('http'),fs=require('fs'),path=require('path');
 const { DatabaseSync }=require('node:sqlite');
 const externalPort=Number(process.env.PORT)||3000;
